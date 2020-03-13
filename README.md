@@ -1,2 +1,3 @@
 # TickStatisticsService
-Tick Statistics Service
+
+Please see the README file under TaskSolactive project.
