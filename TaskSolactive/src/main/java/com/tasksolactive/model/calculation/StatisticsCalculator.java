@@ -1,5 +1,7 @@
 package com.tasksolactive.model.calculation;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.Timestamp;
 import java.text.MessageFormat;
 import java.util.Comparator;
@@ -42,22 +44,27 @@ public class StatisticsCalculator
 		Statistics statistics = new Statistics();
 		
 		statistics.setCount(tickList.size());
-		statistics.setMin(tickList.get(0).getPrice());
-		statistics.setMax(tickList.get(statistics.getCount()-1).getPrice());
-		statistics.setAvg(tickList.parallelStream().mapToDouble(Tick::getPrice).sum()/statistics.getCount());
+		statistics.setMin(scale(tickList.get(0).getPrice(), 
+				AppData.STATISTICS_PRICE_SCALE));
+		statistics.setMax(scale(tickList.get(statistics.getCount()-1).getPrice(), 
+				AppData.STATISTICS_PRICE_SCALE));
+		statistics.setAvg(scale(tickList.parallelStream().mapToDouble(Tick::getPrice).sum()/statistics.getCount(), 
+				AppData.STATISTICS_PRICE_SCALE));
 		
-		statistics.setVolatility(calculateVolatility(tickList, statistics.getAvg()));
+		statistics.setVolatility(scale(calculateVolatility(tickList, statistics.getAvg()),
+				AppData.STATISTICS_SCALE));
 		
-		statistics.setQuantile(calculateQuantile(tickList));
+		statistics.setQuantile(scale(calculateQuantile(tickList), 
+				AppData.STATISTICS_SCALE));
 		
 		//Sort by timestamp to calculate twap and drawdown
 		tickList.sort(Comparator.comparing(Tick::getTimestamp));
 		
 		double[] resultArray = calculateTwapAndDrawdown(tickList);
 		
-		statistics.setTwap(resultArray[0]);
-		statistics.setTwap2(resultArray[1]);
-		statistics.setMaxDrawdown(resultArray[2]);
+		statistics.setTwap(scale(resultArray[0], AppData.STATISTICS_SCALE));
+		statistics.setTwap2(scale(resultArray[1], AppData.STATISTICS_SCALE));
+		statistics.setMaxDrawdown(scale(resultArray[2], AppData.STATISTICS_PRICE_SCALE));
 		
 		stopWatch.stop();
 		
@@ -177,5 +184,19 @@ public class StatisticsCalculator
 				: 1.0;
 		return ((double)(calcTimestamp - timestamp))/AppData.TICK_SLIDING_TIME_INTERVAL 
 			* lambda;
+	}
+	
+	
+	private double scale(double price, int scale)
+	{
+		if(Double.isNaN(price) ||
+				Double.isInfinite(price))
+		{
+			return price;
+		}
+		else
+		{
+			return BigDecimal.valueOf(price).setScale(scale, RoundingMode.DOWN).doubleValue();
+		}
 	}
 }

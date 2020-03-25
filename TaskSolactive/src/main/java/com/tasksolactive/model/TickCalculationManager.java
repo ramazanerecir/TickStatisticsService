@@ -1,15 +1,18 @@
 package com.tasksolactive.model;
 
 import java.text.MessageFormat;
+import java.util.List;
+import java.util.Map.Entry;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import org.apache.log4j.Logger;
 
+import com.tasksolactive.entity.Tick;
+
 /*
  * Managing statistics calculation message queue for instruments for which statistics need to be recalculated
  *
- * List<Tick> can also be used in instrumentQueue in order to reduce locks (by instrument),
- * but this time memory usage will increase 
+ * Queue has pair of Instrument as String and ticks as List which belongs to this instrument
  * */
 public class TickCalculationManager 
 {
@@ -17,7 +20,7 @@ public class TickCalculationManager
 	
 	private static TickCalculationManager instance;
 	
-	private LinkedBlockingQueue<String> instrumentQueue;
+	private LinkedBlockingQueue<Entry<String, List<Tick>>> instrumentQueue;
 	
 	private TickCalculationManager()
 	{
@@ -39,20 +42,21 @@ public class TickCalculationManager
 		LOG.debug("TickCalculationManager initialized");
 	}
 	
-	public void putInstrument(String instrument)
+	public void putInstrument(Entry<String, List<Tick>> instrumentEntry)
 	{
 		try 
 		{
-			instrumentQueue.put(instrument);
+			instrumentQueue.put(instrumentEntry);
 		} 
 		catch (InterruptedException e) 
 		{
-			LOG.error(MessageFormat.format("Failed to put instrument {0} to instrumentQueue", instrument));
+			LOG.error(MessageFormat.format("Failed to put instrument {0} to instrumentQueue", 
+					instrumentEntry.getKey()));
 			LOG.error(e,e);
 		}
 	}
 	
-	public String takeInstrument()
+	public Entry<String, List<Tick>> takeInstrument()
 	{
 		try
 		{

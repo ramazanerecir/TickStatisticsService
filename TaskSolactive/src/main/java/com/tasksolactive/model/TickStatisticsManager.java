@@ -1,9 +1,11 @@
 package com.tasksolactive.model;
 
 import java.text.MessageFormat;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
@@ -182,5 +184,36 @@ public class TickStatisticsManager
 	 * */
 	public Map<String, List<Tick>> getInstrumentMap() {
 		return instrumentMap;
+	}
+	
+	/*
+	 * Returns filtered light copy tick list, instrument pair by instrument
+	 * */
+	public Entry<String, List<Tick>> getFilteredTickList(String instrument)
+	{
+		if(instrument.equals(Constants.ALL_INSTRUMENTS))
+		{
+			return new SimpleEntry<>(instrument,
+							getInstrumentMap()
+								.values()
+								.parallelStream()
+								.flatMap(List::stream)
+								.filter(Tick::validateTimestamp)
+								.map(Tick::lightCopy)
+						        .collect(Collectors.toList()));
+		}
+		else
+		{
+			if(getInstrumentMap().containsKey(instrument))
+				return new SimpleEntry<>(instrument,
+							getInstrumentMap()
+								.get(instrument)
+								.parallelStream()
+								.filter(Tick::validateTimestamp)
+								.map(Tick::lightCopy)
+								.collect(Collectors.toList()));
+			else
+				return new SimpleEntry<>(instrument, new ArrayList<>());
+		}
 	}
 }

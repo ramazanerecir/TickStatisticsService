@@ -4,8 +4,13 @@ package com.tasksolactive;
  * Constant variable names are stored.
  *  
  * */
-public interface Constants 
+public abstract class Constants 
 {
+	private Constants()
+	{
+		//
+	}
+	
 	//Application Name
 	public static final String APP_NAME = "SOLACTIVE TASK";
 	

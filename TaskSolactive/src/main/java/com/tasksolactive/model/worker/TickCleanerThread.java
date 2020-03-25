@@ -31,9 +31,7 @@ public class TickCleanerThread extends AbstractThread
 	public void run()
 	{
 		while(true)
-		{
-			checkAggregationCalculationProcess();
-			
+		{			
 			startStopWatch();
 			Set<String> instrumentSet = TickStatisticsManager.getInstance().getInstrumentMapKeySet();
 			for(String instrument : instrumentSet)
@@ -46,10 +44,7 @@ public class TickCleanerThread extends AbstractThread
 					lock.lock();
 					setProcessing(true);
 					
-					checkAggregationCalculationProcess();
-					
 					cleanInstrumentTicks(instrument);
-					
 				}
 				catch (Exception e)
 				{
@@ -87,6 +82,8 @@ public class TickCleanerThread extends AbstractThread
 		
 		if(!tickList.isEmpty())
 		{
+			checkAggregationCalculationProcess();
+			
 			TickStatisticsManager.getInstance().putInstrumentMap(instrument, 
 							tickList.parallelStream()
 							.filter(Tick::validateTimestamp)
@@ -100,7 +97,8 @@ public class TickCleanerThread extends AbstractThread
 			}
 			else
 			{
-				TickCalculationManager.getInstance().putInstrument(instrument);
+				TickCalculationManager.getInstance().putInstrument(
+						TickStatisticsManager.getInstance().getFilteredTickList(instrument));
 				return true;
 			}
 		}

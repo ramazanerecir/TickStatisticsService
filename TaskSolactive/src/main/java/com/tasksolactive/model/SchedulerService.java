@@ -15,8 +15,6 @@ import com.tasksolactive.model.worker.TickProcessThreadPooler;
 
 /*
  * Scheduling aggregated calculation thread and starting tick cleaner thread
- * 
- * TODO: stop threads method required
  *
  * */
 public class SchedulerService 

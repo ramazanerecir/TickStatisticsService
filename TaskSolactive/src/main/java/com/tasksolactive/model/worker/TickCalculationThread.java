@@ -1,10 +1,8 @@
 package com.tasksolactive.model.worker;
 
 import java.text.MessageFormat;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.locks.Lock;
-import java.util.stream.Collectors;
+import java.util.Map.Entry;
 
 import org.apache.log4j.Logger;
 
@@ -16,7 +14,8 @@ import com.tasksolactive.model.TickStatisticsManager;
 import com.tasksolactive.model.calculation.StatisticsCalculator;
 
 /*
- * Calculation thread that fetches tick list by instrument and run statistic calculator
+ * Calculation thread listens instrument queue and take instrument-ticks pair and run statistic calculator
+ * If calculation is an Aggregated calculation, it fetches all the ticks from TickStatisticsManager
  *
  * */
 public class TickCalculationThread extends AbstractThread
@@ -41,37 +40,19 @@ public class TickCalculationThread extends AbstractThread
 		boolean isRunning = true;
 		while(isRunning)
 		{
-			String instrument = null;
+			Entry<String, List<Tick>> instrumentTicksEntry = null;
 			try
 			{
-				instrument = getInstrument();
+				setProcessing(true);
+				
+				instrumentTicksEntry = getInstrument();
 				
 				startStopWatch();
-				List<Tick> calcTickList = null;
-				Lock lock = null;
-				try
+				if(instrumentTicksEntry.getValue() != null && !instrumentTicksEntry.getValue().isEmpty())
 				{
-					lock = TickStatisticsManager.getInstance().getInstrumentLock(instrument);
-					lock.lock();
-					setProcessing(true);
-					
-					processByAggregation(true);
-					
-					calcTickList = getFilteredTickList(instrument);
+					TickStatisticsManager.getInstance().refreshStatistics(instrumentTicksEntry.getKey(),
+							calculator.calculate(instrumentTicksEntry.getKey(), instrumentTicksEntry.getValue()));
 				}
-				catch (Exception e1)
-				{
-					LOG.error(e1.getMessage(), e1);
-				}
-				finally 
-				{
-					isRunning = processByAggregation(false);
-					
-					unlock(instrument, lock);
-				}
-				
-				TickStatisticsManager.getInstance().refreshStatistics(instrument,
-						calculator.calculate(instrument, calcTickList));
 			}
 			catch (Exception e)
 			{
@@ -79,90 +60,45 @@ public class TickCalculationThread extends AbstractThread
 			}
 			finally 
 			{
+				isRunning = !isAggregatedCalculationProcess();
 				setProcessing(false);
 				stopStopWatch();
-				LOG.trace(MessageFormat.format("Instrument {0} calculation is completed in {1}", instrument, getElapsedTime()));
+				LOG.trace(MessageFormat.format("Instrument {0} calculation is completed in {1}", 
+						instrumentTicksEntry != null ? instrumentTicksEntry.getKey() : "", 
+						getElapsedTime()));
 			}
 		}
 	}
 	
-	private String getInstrument()
+	/*
+	 * It listens and takes instrument-ticks pair from instrument queue
+	 * If calculation is an Aggregated calculation, it fetches all the ticks from TickStatisticsManager
+	 * 
+	 * Returns String, List<Tick> entry : instrument as String and its ticks as list
+	 *
+	 * */
+	private Entry<String, List<Tick>> getInstrument()
 	{
 		if(isAggregatedCalculationProcess())
 		{
-			return Constants.ALL_INSTRUMENTS;
+			try
+			{
+				TickStatisticsManager.getInstance().setAggrCalculationInProgress(true);
+				return TickStatisticsManager.getInstance().getFilteredTickList(Constants.ALL_INSTRUMENTS);
+			}
+			finally 
+			{
+				TickStatisticsManager.getInstance().setAggrCalculationInProgress(false);
+			}
 		}
 		else
 		{
-			String instrument = TickCalculationManager.getInstance().takeInstrument();
-			if(instrument.equals(Constants.ALL_INSTRUMENTS))
-				calculationType = CalculationType.AGGREGATED;
-			return instrument;
+			return TickCalculationManager.getInstance().takeInstrument();
 		}
 	}
 	
 	private boolean isAggregatedCalculationProcess()
 	{
 		return calculationType == CalculationType.AGGREGATED;
-	}
-	
-	/*
-	 * If Calculation Type is aggregation, On/Off Aggregation calculation in progress
-	 * according to status parameter.
-	 * Returns running status
-	 * */
-	private boolean processByAggregation(boolean aggregationStatus)
-	{
-		if(aggregationStatus)
-		{
-			if(isAggregatedCalculationProcess())
-			{
-				TickStatisticsManager.getInstance().setAggrCalculationInProgress(aggregationStatus);
-			}
-			else
-			{
-				checkAggregationCalculationProcess();
-			}
-			return true;
-		}
-		else
-		{
-			if(isAggregatedCalculationProcess())
-			{
-				TickStatisticsManager.getInstance().setAggrCalculationInProgress(aggregationStatus);
-				return false;
-			}
-			else
-				return true;
-		}
-	}
-	
-	/*
-	 * Returns filtered light copy tick list by instrument
-	 * */
-	public List<Tick> getFilteredTickList(String instrument)
-	{
-		if(instrument.equals(Constants.ALL_INSTRUMENTS))
-		{
-			return TickStatisticsManager.getInstance().getInstrumentMap()
-					.values()
-					.parallelStream()
-					.flatMap(List::stream)
-					.filter(Tick::validateTimestamp)
-					.map(Tick::lightCopy)
-			        .collect(Collectors.toList());
-		}
-		else
-		{
-			if(TickStatisticsManager.getInstance().getInstrumentMap().containsKey(instrument))
-				return TickStatisticsManager.getInstance().getInstrumentMap()
-						.get(instrument)
-						.parallelStream()
-						.filter(Tick::validateTimestamp)
-						.map(Tick::lightCopy)
-						.collect(Collectors.toList());
-			else
-				return new ArrayList<>();
-		}
 	}
 }

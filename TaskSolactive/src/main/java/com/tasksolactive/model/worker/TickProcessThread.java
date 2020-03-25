@@ -51,7 +51,9 @@ public class TickProcessThread extends AbstractThread
 					
 					if(tick.validateTimestamp() && put(tick))
 					{
-						TickCalculationManager.getInstance().putInstrument(tick.getInstrument());
+						TickCalculationManager.getInstance().putInstrument(
+								TickStatisticsManager.getInstance()
+										.getFilteredTickList(tick.getInstrument()));
 					}
 					else
 					{
